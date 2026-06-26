@@ -59,7 +59,7 @@ El usuario no interactúa con un mouse o un botón físico para activar la obra,
 El sistema rompe el bucle interactivo lineal mediante la automatización de estados: el usuario inicia una acción (hablar), lo que altera una variable numérica de manera invisible (ruido). Cuando esa variable cruza límites críticos (0, 15, 255), el software toma decisiones autónomas cambiando el valor de la variable estado.
 Finalmente, para salir del bucle de censura del Estado 3, se introduce una regla de interactividad explícita mediante periféricos (keyPressed de la barra espaciadora), lo que reinicia los contadores de memoria de la computadora (ruido = 0; estado = 1;) devolviendo el sistema a su equilibrio inicial.
 
-![Diagrama de flujo](diagrama1.png)
+![Diagrama de flujo](DiagramaDeFlujo.png)
 
 ---
 # Codigo P5.js
