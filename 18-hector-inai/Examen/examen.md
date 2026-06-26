@@ -296,4 +296,4 @@ function gotFaces(results) { //función que recibe los datos de los puntos del r
 ```
 ---
 
-[Link P5.js]([https://editor.p5js.org/ekkkt0r/sketches/mfg8rmYoM](https://editor.p5js.org/ekkkt0r/sketches/QgtesbCIl))
+[Link P5.js](https://editor.p5js.org/ekkkt0r/sketches/QgtesbCIl)
