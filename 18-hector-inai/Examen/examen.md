@@ -64,135 +64,236 @@ Finalmente, para salir del bucle de censura del Estado 3, se introduce una regla
 ---
 # Codigo P5.js
 
-```javascript
-// variables declaradas
+```
 let ruido = 0;
-let r, g, b;
 let rotacion = 0;
 let ojo, boca;
 
-function setup() {
-  createCanvas(800, 800); // tamaño canvas
-  frameRate(50); // velocidad de los frames
+// Variables para la camara y IA
+let capturaCamara;
+let faceMesh;
+let rostros = [];
+let bocaAbierta = false;
+
+let estado = 1;
+
+let sociedadArray = []; //array creado para las elipses grises
+
+class sociedad {  //class que les da las caracteristicas y posición a las elipses grises
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.tamano = 15;
+  }
+
+  mostrar() {
+    let personasGrises = random(255);
+    fill(personasGrises, 255 - ruido);
+    noStroke();
+    ellipse(this.x, this.y, this.tamano);
+  }
 }
 
-function preload() { // función para cargar las imágenes en el código y poderlas usar a lo largo de este
+function preload() {  //función para cargar fotos
   ojo = loadImage("ojo.png");
   boca = loadImage("boca.png");
 }
 
+function setup() {
+  createCanvas(1920, 1080);
+  frameRate(50);
+
+  capturaCamara = createCapture(VIDEO); //activa la cámara
+  capturaCamara.size(640, 480);
+  capturaCamara.hide(); //oculta la camara html que por defecto aparece
+
+  faceMesh = ml5.faceMesh({ maxFaces: 1, refineLandmarks: true }, listo); //Activa el motor de seguimiento facial de la biblioteca ml5.js. define el máximo de rostros a reconocer. Activa máxima presición en reconocimiento facial y crea callback para iniciar todo cuando el facemesh este completamente cargado.
+
+  for (let x = 0; x <= width; x += 25) {
+    for (let y = 0; y <= height; y += 25) {
+      sociedadArray.push(new sociedad(x, y)); // repite y da posición a las elipses creadas en el class y las guarda en el array
+    }
+  }
+}
+
+function listo() {
+  faceMesh.detectStart(capturaCamara, gotFaces); //función que le da el OK al facemesh para que se ejecute cuando este completamente cargado
+}
+
+function windowResized() { //función que permite que el canvas se adapte a la ventana
+  resizeCanvas(windowWidth, windowHeight);
+}
+
 function draw() {
-  // declaración de todas las funciones
-  fondo();
-  fotos();
-  sociedad();
-  glitch();
-  figuras();
-  texto();
-}
+  analizarRostro();
 
-function fondo() {
-  if (mouseIsPressed) { // condicional "si presiono el mouse"
-    ruido = ruido + 2; // si el mouse se presiona, a "ruido" se le suman 2 en cada frame
-  } else { // condicional "si no se presiona el mouse"
-    ruido = ruido - 4; // si el mouse no se está presionando, a "ruido" se le restará 4 cada frame
-  }
-  ruido = constrain(ruido, 0, 255); // constrain sirve para declararle límites a las operaciones de "ruido", sin este "ruido" sumará o restará infinitamente
-  background(28 + ruido, 28, 28); // da el color gris al fondo, pero como el R está sumado con "ruido", al presionarlo este 28 subirá.
-}
-
-function fotos() {
-  if (mouseIsPressed) {
-    tint(255, ruido); // da tinte a las imágenes; en este caso está con los tintes RGB al 255 y no varía, pero sí la opacidad que depende del "mouseIsPressed" y de "ruido"
-    let fotos = random(100); // en esta variable se declara un random con máximo de 100, para que nos dé números aleatorios del 0 al 100
-    let tamanoFotos = random(40, 300); // variable que nos permitirá darle tamaños aleatorios a las imágenes.
-    if (fotos < 50) { // condicional "si" la variable "fotos" nos da un número menor o igual a 50, nos pondrá la imagen "ojo"
-      image(
-        ojo,
-        random(0, width - tamanoFotos), // posición de la imagen en "random" con el mínimo 0 y máximo el ancho del canvas.
-        random(0, height - tamanoFotos), // posición de la imagen en "random" con el mínimo 0 y máximo el alto del canvas.
-        tamanoFotos, // tamaño de la imagen aleatorio
-        tamanoFotos
-      );
-    } else { // condicional "si fotos" nos da un número mayor a 50, nos pondrá la imagen "boca"
-      image(
-        boca,
-        random(0, width - tamanoFotos),
-        random(0, height - tamanoFotos),
-        tamanoFotos,
-        tamanoFotos
-      );
-    }
-    noTint(); // cierre del uso del tinte
+  if (estado === 1) { //declara cada estado a su respectiva función que ejecute los necesario en cada estado
+    estadoSilencio();
+  } else if (estado === 2) {
+    estadoCaos();
+  } else {
+    estadoCensura();
   }
 }
 
-function sociedad() {
-  for (let x = 0; x <= width; x = x + 25) { // automatización de las elipses en x
-    for (let y = 0; y <= height; y = y + 25) { // automatización de las elipses en y
-      let personasGrises = random(255); // variable que declara color aleatorio pero en escala de grises.
-      fill(personasGrises, 255 - ruido); // relleno de las elipses con la variable "personasGrises" y la opacidad que se resta progresivamente de acuerdo al mouseIsPressed de "ruido"
-      noStroke(); // elipses sin borde
-      ellipse(x, y, 15); // creación de la elipse
+function analizarRostro() {
+  if (rostros.length > 0) { //enumera al primer rostro que aparezca, como el máximo de rostros es 1, el unico que aparezca sera enumerado como "0" para reconocerlo.
+    let puntos = rostros[0].keypoints; //pone puntos de rastreo facial por todo el rostro del usuario "0"
+    let labioSuperior = puntos[13]; //define el punto central del labio superior
+    let labioInferior = puntos[14]; //define el punto central del labio inferior
+
+    if (labioSuperior && labioInferior) { //el doble && permite que ambas variables solo se ejecuten cuando hayan datos disponibles, en este caso, que esten visibles los labios, y asi no se buguee el sistema
+      let distanciaBoca = dist( //la función dist permite calcular la distancia entre puntos 13 y 14 en X y Y
+        labioSuperior.x,
+        labioSuperior.y,
+        labioInferior.x,
+        labioInferior.y
+      );
+
+      let mapeoRuido = map(distanciaBoca, 5, 40, 0, 5); //map que transforma la distancia de la boca en numeros del 0 al 5
+      mapeoRuido = constrain(mapeoRuido, 0, 5); //limita que a pesar de que el usuario abra mucho la boca, el número maximo no pase del 5, o que el minimo no baje infinitamente
+
+      if (distanciaBoca > 15) { // si la distancia de la boca es mayor o igual a 15, la variable bocaAbierta es verdadera
+        bocaAbierta = true;
+        ruido += mapeoRuido; //si es verdadera, el ruido se suma con los resultantes de "mapeoRuido"
+        if (estado === 1) estado = 2; //si esto sucede, el estado 1 pasa directamente al estado 2
+      } else {
+        bocaAbierta = false; //si bocaAbierta es falso
+        ruido -= 4; //ruido comienza a restarse de a -4 hasta llegar a 0
+        if (estado === 2) estado = 1; //al cerrar la boca ya estando en el estado 2, los números de ruido comienzan a bajar, por lo que esta linea la hace volver al estado 1
+      }
     }
   }
 }
 
-function glitch() {
-  if (mouseIsPressed) {
-    r = random(50); // variable que declara aleatoriedad a R de 0 a 50
-    g = random(50); // variable que declara aleatoriedad a G de 0 a 50
-    b = random(255); // variable que declara aleatoriedad a B de 0 a 255
-    push();
-    rotacion = rotacion + 1; // variable que declara suma a la rotación
-    rotate(rotacion); // función de rotar
-    stroke(r, g, b); // línea en colores random gracias a las variables r, g y b
-    line(0, random(0, 800), 800, random(0, 800)); // creación de líneas
-    line(0, random(0, 800), 800, random(0, 800));
-    line(random(0, 800), 0, 800, random(0, 800));
-    line(0, random(0, 800), random(0, 800), random(0, 800));
-    line(0, random(0, 800), random(0, 800), 0);
-    line(random(0, 800), 800, 800, random(0, 800));
-    pop();
+function estadoSilencio() { //definir estado 1, el estado del silencio
+  ruido = max(ruido, 0); // la funcion "max" tambien funciona para dar limites, pero solo al extremo inferior, por lo que permite al maximo seguir subiendo libremente, pero no bajar de 0
+
+  image(capturaCamara, 0, 0, width, height); //volvemos a capturar la Webcam para ocuparla en este estado
+
+  let opacidadOscura = map(ruido, 0, 50, 255, 180); //let que define el juego de opacidad en la pantalla 1. el map utiliza la variable "ruido" como valor, que transforma el minimo a la maxima opacidad, y el maximo a una opacidad media
+  fill(28, 28, 28, opacidadOscura); //llena la pantalla con un color gris y su opacidad depende del let "opacidadOscura"
+  rect(0, 0, width, height);
+
+  dibujarSociedad();
+
+  noStroke();
+  fill(35);
+  rect(width * 0.2, height * 0.2, 80, 80);
+  circle(width * 0.8, height * 0.2, 80);
+  triangle(
+    width * 0.2,
+    height * 0.7,
+    width * 0.18,
+    height * 0.8,
+    width * 0.22,
+    height * 0.8
+  );
+  ellipse(width * 0.8, height * 0.7, 70, 100);
+
+  dibujarTexto("abre la boca para que las figuras se expresen");
+}
+
+function estadoCaos() { //definir estado 2, el estado del caos
+  ruido = constrain(ruido, 0, 255); // limita que ruido no baje mas que 0 ni suba mas a 255
+
+  image(capturaCamara, 0, 0, width, height); //captura de nuevo la imagen de Webcam para utilizarla en este estado
+
+  fill(28 + ruido, 28, 28, ruido); //rectangulo gris que se desvanece dependiendo de ruido
+  rect(0, 0, width, height);
+
+  dibujarSociedad();
+  dibujarFotosAleatorias(); //declara estas dos variables dentro del estado dos para que se dibujen mientras el sistema este dentro de este estado.
+
+  fill(random(255), random(255), random(255), 220);
+  noStroke();
+  rect(width * 0.8 + random(-15, 15), height * 0.7 + random(-15, 15), 100, 120);
+  circle(width * 0.2 + random(-15, 15), height * 0.7 + random(-15, 15), 90);
+  triangle(
+    width * 0.8 + random(-15, 15),
+    height * 0.2 + random(-15, 15),
+    width * 0.78,
+    height * 0.3,
+    width * 0.82,
+    height * 0.3
+  );
+  ellipse(
+    width * 0.2 + random(-15, 15),
+    width * 0.2 + random(-15, 15),
+    70,
+    100
+  ); //dibuja las figuras aleatorias para crear el glitch
+
+  dibujarTexto("juzgándolas... ¿Por qué lo haces?");
+
+  if (ruido >= 255) { //si la variable ruido llega a ser igual o mayor a 255, automaticamente pasa del estado 2 al estado 3
+    estado = 3;
+  }
+}
+function estadoCensura() { //definir estado 3, el estado de la censura
+  background(0);
+  fill(255, 0, 0);
+  textSize(50);
+  textAlign(CENTER, CENTER);
+  text(
+    "CALLATE! dejalas vivir en paz.\nPresiona 'Espacio' para reiniciar",
+    width / 2,
+    height / 2
+  );
+}
+
+function dibujarSociedad() { //función que declara el dibujo de la sociedad fuera de todo estado, para que se pueda declarar facilmente dentro de cada estado en el que sea necesario
+  for (let i = 0; i < sociedadArray.length; i++) {
+    sociedadArray[i].mostrar();
   }
 }
 
-function figuras() {
-  rectMode(CENTER); // posiciona las figuras desde el centro en vez de la esquina superior izquierda
-
-  if (mouseIsPressed) { // condicional "si" el mouse se presiona, las figuras aleatorias de colores aparecen
-    fill(random(255), random(255), random(255));
-    noStroke();
-    rect(600 + random(-15, 15), 600 + random(-15, 15), 100, 120);
-    circle(200 + random(-15, 15), 600 + random(-15, 15), 90);
-    triangle(
-      600 + random(-15, 15),
-      150 + random(-15, 15),
-      550,
-      250 + random(-15, 15),
-      650,
-      250 + random(-15, 15)
-    );
-    ellipse(200 + random(-15, 15), 200 + random(-15, 15), 70, 100);
-    rect(200 + random(-25, 25), 200 + random(-25, 25), 70, 60);
-  } else { // variable "si el mouse no se apreta", las figuras estáticas aparecen
-    noStroke();
-    fill(35);
-    rect(200, 200, 80, 80);
-    circle(600, 200, 80);
-    triangle(200, 550, 150, 650, 250, 650);
-    ellipse(600, 600, 70, 100);
-  }
+function Glitch() { //función que declara el glitch fuera de todo estado, para que se pueda declarar facilmente dentro de cada estado en el que sea necesario
+  let r, g, b;
+  r = random(50);
+  g = random(50);
+  b = random(255);
+  push();
+  rotacion += 1;
+  rotate(rotacion);
+  stroke(r, g, b);
+  line(0, random(0, height), width, random(0, height));
+  line(0, random(0, height), random(0, width), random(0, height));
+  pop();
 }
 
-function texto() {
+function dibujarFotosAleatorias() {//función que declara el glitch fuera de todo estado, para que se pueda declarar facilmente dentro de cada estado en el que sea necesario
+  tint(255, ruido); //ayuda a la aparición progresiva de las imagenes
+  let d = random(100); //variable que arroja numeros aleatorios de 0 al 100
+  let tam = random(40, 300); //variable que entrega tamaño aleatorio entre 40 y 300 a las imagenes
+  if (d < 50) { //si d arroja un numero menor o igual a 50 se dibujara la imagen de "ojo"
+    image(ojo, random(0, width - tam), random(0, height - tam), tam, tam);
+  } else { //si d arroja un numero mayor o igual a 50 se dibujara la imagen "boca"
+    image(boca, random(0, width - tam), random(0, height - tam), tam, tam);
+  }
+  noTint();//cierra el filtro de tint para que no afecte a otras cosas
+}
+
+function dibujarTexto(textitos) { //da caracteristicas a los textos
   fill(255, 255 - ruido);
-  textSize(24); // tamaño del texto
+  textSize(30);
   textAlign(CENTER);
   noStroke();
-  text("haz click para que las figuras se expresen", 400, 750); // creación del texto
+  text(textitos, width / 2, height * 0.9);
 }
+
+function keyPressed() { //función que declara que al apretar tecla espacio, estando Solo en el estado 3, se vuelve al estado 1, el ruido vuelve a 0 y bocaAbierta se hace falso.
+  if (key === " " && estado === 3) {
+    estado = 1;
+    ruido = 0;
+    bocaAbierta = false;
+  }
+}
+function gotFaces(results) { //función que recibe los datos de los puntos del rostro, los almacena en la variable "rostros" para que se puedan usar en el codigo.
+  rostros = results; //variable rostros es igual a los resultados de identificación de puntos del facemesh
+}
+
 ```
 ---
 
-[Link P5.js](https://editor.p5js.org/ekkkt0r/sketches/mfg8rmYoM)
+[Link P5.js]([https://editor.p5js.org/ekkkt0r/sketches/mfg8rmYoM](https://editor.p5js.org/ekkkt0r/sketches/QgtesbCIl))
